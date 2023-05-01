@@ -26,6 +26,8 @@ namespace PalaLite.Models
         {
             packetManager = new PacketManager();
             InitializeCy();
+
+            StopPMT();
         }
 
 
@@ -245,7 +247,8 @@ namespace PalaLite.Models
             Thread.Sleep(50);
             SetData(0x30, 1, 1, 2); //start data acquisition
             Thread.Sleep(50);
-            StartDataTransfer();
+            //StartDataTransfer();
+            DataAcqusitionThread();
         }
 
         public void StopPMT()

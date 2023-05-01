@@ -8,7 +8,7 @@ namespace PalaLite.Models
         //Cell SortingData
         int bulkSortingCount;
 
-        private int _packetLength = 512;
+        //private int _packetLength = 512;
         private ConcurrentQueue<byte[]> _packets;
 
         private int _packetsToAnalyze = 1000;

@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
-using System.Threading;
+using System.Threading.Tasks;
 using CyUSB;
 using PalaLite.Models;
 
@@ -15,18 +15,26 @@ namespace PalaLite
 
         static void Main(string[] args)
         {
-            Console.CancelKeyPress += new ConsoleCancelEventHandler(App_ProcessExit);
-            System.Diagnostics.Process myProcess = System.Diagnostics.Process.GetCurrentProcess();
+            try
+            {
+                Console.CancelKeyPress += new ConsoleCancelEventHandler(App_ProcessExit);
+                System.Diagnostics.Process myProcess = System.Diagnostics.Process.GetCurrentProcess();
 
-            myProcess.PriorityClass = System.Diagnostics.ProcessPriorityClass.High;
+                myProcess.PriorityClass = System.Diagnostics.ProcessPriorityClass.High;
 
-            _decoder = new CellPMTDataDecoder();
-            _decoder.DataAvailableEventHandler += Decoder_DataAvailable;
+                _decoder = new CellPMTDataDecoder();
+                _decoder.DataAvailableEventHandler += Decoder_DataAvailable;
 
-            _mcu = new MicroController();
-            _mcu.packetManager.DoneEventHandler += PacketLimitReached;
-            _mcu.packetManager.PacketAvailableEventHandler += PacketAvailable;
-            _mcu.StartPMT();
+                _mcu = new MicroController();
+                _mcu.packetManager.DoneEventHandler += PacketLimitReached;
+                _mcu.packetManager.PacketAvailableEventHandler += PacketAvailable;
+                _mcu.StartPMT();
+                //while (true) {; }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message + e.StackTrace);
+            }
         }
 
         static void App_ProcessExit(object sender, EventArgs e)
@@ -44,15 +52,16 @@ namespace PalaLite
             // Do Something...
         }
 
-        static void PacketAvailable(object sender, EventArgs e)
+        static async void PacketAvailable(object sender, EventArgs e)
         {
             bool success;
             byte[] data;
-            while (_mcu.packetManager.DataAvailable())
-            {
-                (success, data) = _mcu.packetManager.GetNextPacket();
-                if (success) { AnalyzePacket(data); }
-            }
+            //while (_mcu.packetManager.DataAvailable())
+            //{
+            (success, data) = _mcu.packetManager.GetNextPacket();
+            if (success) { await Task.Run(() => AnalyzePacket(data)); }
+            Console.WriteLine(data);
+            //}
         }
 
         static void PacketLimitReached(object sender, EventArgs e)

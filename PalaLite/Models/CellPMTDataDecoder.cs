@@ -37,8 +37,11 @@ namespace PalaLite.Models
         public event EventHandler DoneEventHandler;
         public event EventHandler<DataAvailableEventArgs> DataAvailableEventHandler;
 
-        private List<string> _outputBuffer = new List<string>();
-        int counter;
+        private List<string> _logBuffer = new List<string>();
+        private List<string> _consoleBuffer = new List<string>();
+
+        private int _packetCounter;
+        private int _packetsBeforeSend = 10;
 
         public CellPMTDataDecoder()
         {
@@ -49,18 +52,18 @@ namespace PalaLite.Models
                 "Namocell",
                 "Logs");
             _rawEventCountFilename = $"event-{DateTime.Now.ToString("yyyyMMdd-hhmm")}.csv";
-            counter = 0;
+            _packetCounter = 0;
         }
 
         public void AnalyzePacket(byte[] packet, int selectedChannels, int channelNumber, int plateRow, int plateColumn)
         {
-            counter += 1;
+            _packetCounter += 1;
             CellPMTData cellPMTData = new CellPMTData();
             int numParameters;
             int channel;        //selected channels
             int bytesPerEvent;  //number of bytes per event
             int channelCounter; //count next byte
-            string str;
+            string subPacket;
 
             //Data from each PMT is 4 bytes float
             byte[] Count = new byte[4];
@@ -96,7 +99,6 @@ namespace PalaLite.Models
             bytesPerEvent = numParameters * 4; //calculate the number of bytes per event
 
             _firstEvent = BitConverter.ToInt32(Count, 0);
-            List<string> _output = new List<string>();
 
             if (_firstEvent > 10000000)
                 _firstEvent = 10000000;
@@ -108,8 +110,8 @@ namespace PalaLite.Models
                 bool moreDataInPacket = true;
 
                 _previousFirstEvent = _firstEvent;
-                _output.Add("==========================New Packet=====================================");
-                _output.Add(BitConverter.ToString(packet));
+                _consoleBuffer.Add("======================================== New Packet ========================================");
+                _consoleBuffer.Add(BitConverter.ToString(packet));
 
                 // Repeat for each event in the packet
                 while (moreDataInPacket)
@@ -120,10 +122,11 @@ namespace PalaLite.Models
                     Count[3] = packet[3 + bytesPerEvent * eventIndex];
 
                     currentEvent = BitConverter.ToInt32(Count, 0);
+                    _consoleBuffer.Add(currentEvent.ToString());
                     if (currentEvent > 10000000)
                         currentEvent = 10000000;
 
-                    if (currentEvent != previousEvent)
+                    if (currentEvent > previousEvent)
                     {
                         //Event Timestamp
                         Time[0] = packet[4 + bytesPerEvent * eventIndex];
@@ -159,7 +162,7 @@ namespace PalaLite.Models
                         channelCounter = 28;        //reset buffer index
                         channel = selectedChannels; //reset channel selection
 
-                        str = string.Format("{0}-{1}-{2}-{3}-{4}-{5}-{6}",
+                        subPacket = string.Format("{0}-{1}-{2}-{3}-{4}-{5}-{6}",
                             BitConverter.ToString(Count),
                             BitConverter.ToString(Time),
                             BitConverter.ToString(Sort),
@@ -244,7 +247,7 @@ namespace PalaLite.Models
 
                         if (eventIndex > 0 && (currentEvent > (previousEvent + 10))) // Max Number of Events Per Packet?
                         {
-                            _output.Add("********************************************* Missed Packet *********************************************");
+                            _consoleBuffer.Add("**************************************** Missed Packet ****************************************");
                         }
                         if (currentEvent < 0)
                             return;
@@ -253,14 +256,20 @@ namespace PalaLite.Models
 
                         if (_logData)
                         {
-                            _outputBuffer.Add($"{currentEvent.ToString()}, {cellPMTData.Time.ToString()}");
+                            _logBuffer.Add(cellPMTData.ToString());
                         }
 
                         if (_printConsoleOutput)
                         {
-                            Console.WriteLine(currentEvent.ToString() + Environment.NewLine);
-                            Console.WriteLine(str + Environment.NewLine);
-                            _output.Add(str + Environment.NewLine);
+                            //Console.WriteLine(currentEvent.ToString());
+                            //Console.WriteLine(subPacket + Environment.NewLine);
+                            _consoleBuffer.Add(currentEvent.ToString());
+                            _consoleBuffer.Add(subPacket);
+                        }
+
+                        if (_packetCounter >= _packetsBeforeSend)
+                        {
+                            ExportData();
                         }
 
                         eventIndex++;
@@ -276,8 +285,8 @@ namespace PalaLite.Models
                 }
             }
 
-            File.AppendAllLines(Path.Combine(_logPath, _rawEventCountFilename), _output.ToArray());
-            _output.Clear();
+            //File.AppendAllLines(Path.Combine(_logPath, _rawEventCountFilename), _consoleBuffer.ToArray());
+            //_consoleBuffer.Clear();
 
             bool Analyze(ChannelFilter filter, int index, ref byte[] target)
             {
@@ -291,7 +300,7 @@ namespace PalaLite.Models
                     target[2] = packet[channelCounter + 2 + (bytesPerEvent * index)];
                     target[3] = packet[channelCounter + 3 + (bytesPerEvent * index)];
                     channelCounter += 4;
-                    str += BitConverter.ToString(target) + "-";
+                    subPacket += BitConverter.ToString(target) + "-";
                 }
                 return dataFound;
             }
@@ -322,16 +331,28 @@ namespace PalaLite.Models
 
         public void ExportData()
         {
-            foreach (string val in _outputBuffer)
+            if (_logData)
             {
-                File.AppendAllText(
-                    Path.Combine(_logPath, _rawEventCountFilename),
-                    val + Environment.NewLine);
+                foreach (string val in _logBuffer)
+                {
+                    File.AppendAllText(
+                        Path.Combine(_logPath, _rawEventCountFilename),
+                        val + Environment.NewLine);
+                }
+                //_logBuffer.Add(counter.ToString());
+                //File.WriteAllLines(Path.Combine(_logPath, _rawEventCountFilename), _logBuffer.ToArray());
+                _logBuffer.Clear();
             }
-            _outputBuffer.Add(counter.ToString());
-            File.WriteAllLines(Path.Combine(_logPath, _rawEventCountFilename), _outputBuffer.ToArray());
-            _outputBuffer.Clear();
-            counter = 0;
+
+            if (_printConsoleOutput)
+            {
+                foreach (string val in _consoleBuffer)
+                {
+                    Console.WriteLine(val);
+                }
+                _consoleBuffer.Clear();
+            }
+            _packetCounter = 0;
         }
 
         private void DataAvailable(CellPMTData cellPMTData)
@@ -371,7 +392,7 @@ namespace PalaLite.Models
             _firstEvent = 0;
             _previousFirstEvent = 0;
             _rawEventCountFilename = $"event-{DateTime.Now.ToString("yyyyMMdd-hhmm")}.csv";
-            counter = 0;
+            _packetCounter = 0;
         }
     }
 
