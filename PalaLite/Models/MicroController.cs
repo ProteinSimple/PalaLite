@@ -22,11 +22,12 @@ namespace PalaLite.Models
 
         public PacketManager packetManager;
 
+        public event EventHandler StartDataAcquisitionEventHandler;
+
         public MicroController() 
         {
             packetManager = new PacketManager();
             InitializeCy();
-
             StopPMT();
         }
 
@@ -64,47 +65,6 @@ namespace PalaLite.Models
             _baseIsoEndpoint = null; // reset
         }
 
-        private void DataAcqusitionThread()
-        {
-            byte[] buffer = new byte[512];
-
-            _acquireData = true; //Start usb data transfer
-
-            // Setup iso-transfer buffers size 512 and one packet per transfer
-            byte[] cmdBufs = new byte[512];
-            byte[] xferBufs = new byte[512];
-            byte[] ovLaps = new byte[512];
-            ISO_PKT_INFO[] pktsInfo = new ISO_PKT_INFO[1];
-
-            //Pin the data buffer memory, so GC won't touch the memory
-            GCHandle cmdBufferHandle = GCHandle.Alloc(cmdBufs[0], GCHandleType.Pinned);
-            GCHandle xFerBufferHandle = GCHandle.Alloc(xferBufs[0], GCHandleType.Pinned);
-            GCHandle overlapDataHandle = GCHandle.Alloc(ovLaps[0], GCHandleType.Pinned);
-            GCHandle pktsInfoHandle = GCHandle.Alloc(pktsInfo[0], GCHandleType.Pinned);
-
-            // Reset the Decoder
-            //_decoder = new CellPMTDataDecoder();
-            //_decoder.CellPMTDataAvailableEventHandler += Decoder_PMTDataAvailable;
-            try
-            {
-                LockNLoad(cmdBufs, xferBufs, ovLaps, pktsInfo);
-            }
-            catch (NullReferenceException ex)
-            {
-                // This exception gets thrown if the device is unplugged 
-                // while we're streaming data
-                Console.WriteLine($"Data Streaming Interrupted.  Was the device unplugged?{Environment.NewLine}");
-                Console.WriteLine(ex.Message);
-                Console.WriteLine(ex.StackTrace);
-            }
-
-            //Release the pinned memory and make it available to GC
-            cmdBufferHandle.Free();
-            xFerBufferHandle.Free();
-            overlapDataHandle.Free();
-            pktsInfoHandle.Free();
-        }
-
         private unsafe void XferData(byte[] cBufs, byte[] xBufs, byte[] oLaps, ISO_PKT_INFO[] pktsInfo, GCHandle handleOverlap)
         {
             int len = 0;
@@ -132,7 +92,7 @@ namespace PalaLite.Models
 
                     ISO_PKT_INFO[] pkts = pktsInfo;
 
-                    if (_previousFirstEvent != _currentFirstEvent)
+                    if ((_previousFirstEvent != _currentFirstEvent) && _currentFirstEvent > 0)
                     {
                         if (pkts[0].Status == 0)
                         {
@@ -150,7 +110,7 @@ namespace PalaLite.Models
             _baseIsoEndpoint.Abort();
         }
 
-        private unsafe void LockNLoad(byte[] cBufs, byte[] xBufs, byte[] oLaps, ISO_PKT_INFO[] pktsInfo)
+        public unsafe void LockNLoad(byte[] cBufs, byte[] xBufs, byte[] oLaps, ISO_PKT_INFO[] pktsInfo)
         {
             GCHandle bufSingleTransfer;
             GCHandle bufDataAllocation;
@@ -231,13 +191,13 @@ namespace PalaLite.Models
             SetData(0x6C, control, 0, 2); //control = 0: stop, 1: start, 2: pause, 3: resume
         }
 
-        private void StartDataTransfer()
+        /*private void StartDataTransfer()
         {
             Thread DataAcqusition = new Thread(new ThreadStart(DataAcqusitionThread)); //kick off a new thread
             DataAcqusition.IsBackground = true;
             DataAcqusition.Priority = ThreadPriority.Highest;
             DataAcqusition.Start();
-        }
+        }*/
 
         public void StartPMT()
         {
@@ -247,8 +207,22 @@ namespace PalaLite.Models
             Thread.Sleep(50);
             SetData(0x30, 1, 1, 2); //start data acquisition
             Thread.Sleep(50);
-            //StartDataTransfer();
-            DataAcqusitionThread();
+            StartDataAcquisition();
+        }
+
+        private void StartDataAcquisition()
+        {
+            _acquireData = true;
+            OnStartDataAcquisition(new EventArgs());
+        }
+
+        protected virtual void OnStartDataAcquisition(EventArgs e)
+        {
+            EventHandler handler = StartDataAcquisitionEventHandler;
+            if (handler != null)
+            {
+                handler(this, e);
+            }
         }
 
         public void StopPMT()
