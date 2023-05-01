@@ -37,7 +37,7 @@ namespace PalaLite.Models
         public event EventHandler DoneEventHandler;
         public event EventHandler<DataAvailableEventArgs> DataAvailableEventHandler;
 
-        private List<string> _buffer = new List<string>();
+        private List<string> _outputBuffer = new List<string>();
         int counter;
 
         public CellPMTDataDecoder()
@@ -89,28 +89,29 @@ namespace PalaLite.Models
             byte[] RL6 = new byte[4];  //laser 1 PMT 5
             byte[] RL7 = new byte[4];  //laser 1 PMT 6
 
-            int currentEvent = 0;
+            int currentEvent;
             int previousEvent = 0;
 
             numParameters = channelNumber + 7; //calculate the number of Parameters
             bytesPerEvent = numParameters * 4; //calculate the number of bytes per event
 
             _firstEvent = BitConverter.ToInt32(Count, 0);
-            List<string> DataBuffer = new List<string>();
+            List<string> _output = new List<string>();
 
             if (_firstEvent > 10000000)
                 _firstEvent = 10000000;
 
 
-            if (_firstEvent != _previousFirstEvent) // Skip if current event matches previous event.
+            if (_firstEvent != _previousFirstEvent) // Skip if current event matches previous first event.
             {
                 int eventIndex = 0;
                 bool moreDataInPacket = true;
 
                 _previousFirstEvent = _firstEvent;
-                DataBuffer.Add("==========================New Packet=====================================");
-                DataBuffer.Add(BitConverter.ToString(packet));
+                _output.Add("==========================New Packet=====================================");
+                _output.Add(BitConverter.ToString(packet));
 
+                // Repeat for each event in the packet
                 while (moreDataInPacket)
                 {
                     Count[0] = packet[0 + bytesPerEvent * eventIndex];
@@ -155,9 +156,10 @@ namespace PalaLite.Models
                         BL1[2] = packet[26 + bytesPerEvent * eventIndex];
                         BL1[3] = packet[27 + bytesPerEvent * eventIndex];
 
-                        channelCounter = 28; //reset buffer index
+                        channelCounter = 28;        //reset buffer index
                         channel = selectedChannels; //reset channel selection
-                        str = String.Format("{0}-{1}-{2}-{3}-{4}-{5}-{6}",
+
+                        str = string.Format("{0}-{1}-{2}-{3}-{4}-{5}-{6}",
                             BitConverter.ToString(Count),
                             BitConverter.ToString(Time),
                             BitConverter.ToString(Sort),
@@ -240,26 +242,25 @@ namespace PalaLite.Models
                         cellPMTData.Row = CNM_Def.STRROW_Alphabet[plateRow];
                         cellPMTData.Column = (plateColumn + 1).ToString();
 
-                        if (eventIndex > 0 && (currentEvent > (previousEvent + 10)))
+                        if (eventIndex > 0 && (currentEvent > (previousEvent + 10))) // Max Number of Events Per Packet?
                         {
-                            DataBuffer.Add("********************************************* Missed Packet *********************************************");
+                            _output.Add("********************************************* Missed Packet *********************************************");
                         }
                         if (currentEvent < 0)
                             return;
 
-                        //CellPMTDataAvailable(cellPMTData);
+                        DataAvailable(cellPMTData);
 
-                        /*if (_logEventData)
+                        if (_logData)
                         {
-                            var d = new DateTime(cellPMTData.Time);
-                            _buffer.Add($"{currentEvent.ToString()}, {cellPMTData.Time.ToString()}");
-                        }*/
+                            _outputBuffer.Add($"{currentEvent.ToString()}, {cellPMTData.Time.ToString()}");
+                        }
 
                         if (_printConsoleOutput)
                         {
-                            //Console.WriteLine(currentEvent.ToString() + Environment.NewLine);
-                           //Console.WriteLine(str + Environment.NewLine);
-                            DataBuffer.Add(str + Environment.NewLine);
+                            Console.WriteLine(currentEvent.ToString() + Environment.NewLine);
+                            Console.WriteLine(str + Environment.NewLine);
+                            _output.Add(str + Environment.NewLine);
                         }
 
                         eventIndex++;
@@ -275,8 +276,8 @@ namespace PalaLite.Models
                 }
             }
 
-            File.AppendAllLines(Path.Combine(_logPath, _rawEventCountFilename), DataBuffer.ToArray());
-            DataBuffer.Clear();
+            File.AppendAllLines(Path.Combine(_logPath, _rawEventCountFilename), _output.ToArray());
+            _output.Clear();
 
             bool Analyze(ChannelFilter filter, int index, ref byte[] target)
             {
@@ -301,7 +302,7 @@ namespace PalaLite.Models
         /// </summary>
         /// <param name="data"></param>
         /// <returns> The Int32 representation of the first four bytes in the referenced byte array</returns>
-        public static int EventNumber(ref byte[] data)
+        public static int EventNumber(byte[] data)
         {
             int bytesPerValue = 4;
             byte[] target = new byte[bytesPerValue];
@@ -321,15 +322,15 @@ namespace PalaLite.Models
 
         public void ExportData()
         {
-            foreach (string val in _buffer)
+            foreach (string val in _outputBuffer)
             {
                 File.AppendAllText(
                     Path.Combine(_logPath, _rawEventCountFilename),
                     val + Environment.NewLine);
             }
-            _buffer.Add(counter.ToString());
-            File.WriteAllLines(Path.Combine(_logPath, _rawEventCountFilename), _buffer.ToArray());
-            _buffer.Clear();
+            _outputBuffer.Add(counter.ToString());
+            File.WriteAllLines(Path.Combine(_logPath, _rawEventCountFilename), _outputBuffer.ToArray());
+            _outputBuffer.Clear();
             counter = 0;
         }
 

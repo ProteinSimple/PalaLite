@@ -1,33 +1,78 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Collections.Concurrent;
 
 namespace PalaLite.Models
 {
     internal class PacketManager
     {
-        private CellPMTDataDecoder _decoder;
+        //Cell SortingData
+        int bulkSortingCount;
 
-        //Cell Sorting Data
-        int m_iBulkSortingCount;
+        private int _packetLength = 512;
+        private ConcurrentQueue<byte[]> _packets;
+
+        private int _packetsToAnalyze = 1000;
+        private int _packetCount;
+        private bool _done;
+
+        public event EventHandler DoneEventHandler;
+        public event EventHandler<EventArgs> PacketAvailableEventHandler;
 
         public PacketManager() 
         {
-            _decoder = new CellPMTDataDecoder();
-            _decoder.DataAvailableEventHandler += Decoder_DataAvailable;
-            _decoder.DoneEventHandler += Decoder_Done;
+            _packets = new ConcurrentQueue<byte[]>();
         }
 
-        static void Decoder_DataAvailable(object sender, DataAvailableEventArgs e)
+        public void Add(byte[] data)
         {
-            // Do Something...
+            if (_packetCount < _packetsToAnalyze)
+            {
+                _packets.Enqueue(data);
+                EventArgs args = new EventArgs();
+                OnPacketAvailable(args);
+                _packetCount++;
+            } else
+            {
+                if (!_done) { Done(); }
+            }
         }
 
-        static void Decoder_Done(object sender, EventArgs e)
+        public (bool, byte[]) GetNextPacket()
         {
-            // Do Something...
+            byte[] packet;
+            bool success = _packets.TryDequeue(out packet);
+            return (success, packet);
+        }
+
+        public bool DataAvailable() => !_packets.IsEmpty;
+
+        protected virtual void OnPacketAvailable(EventArgs e)
+        {
+            EventHandler<EventArgs> handler = PacketAvailableEventHandler;
+            if (handler != null)
+            {
+                handler(this, e);
+            }
+        }
+
+        private void Done()
+        {
+            _done = true;
+            OnDone(new EventArgs());
+        }
+
+        protected virtual void OnDone(EventArgs e)
+        {
+            EventHandler handler = DoneEventHandler;
+            if (handler != null)
+            {
+                handler(this, e);
+            }
         }
     }
+
+    /*public class PacketAvailableEventArgs : EventArgs
+    {
+        public byte[] Packet { get; set; }
+    }*/
 }

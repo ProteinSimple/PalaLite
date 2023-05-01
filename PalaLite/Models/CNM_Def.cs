@@ -147,6 +147,13 @@ namespace PalaLite.Models
         public int Sort;
         public string Row;
         public string Column;
+
+        public override string ToString()
+        {
+            var msg = string.Format("{1},{2},{3},{4},{5}",
+                EventCount, Time, Sort, Row, Column);
+            return msg;
+        }
     }
 
     #endregion
