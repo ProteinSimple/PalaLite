@@ -28,13 +28,59 @@ namespace PalaLite
                 _mcu = new MicroController();
                 _mcu.packetManager.DoneEventHandler += PacketLimitReached;
                 _mcu.packetManager.PacketAvailableEventHandler += PacketAvailable;
+                _mcu.StartDataAcquisitionEventHandler += StartDataAcquisition;
                 _mcu.StartPMT();
-                //while (true) {; }
             }
             catch (Exception e)
             {
                 Console.WriteLine(e.Message + e.StackTrace);
             }
+        }
+
+        static void StartDataAcquisition(object sender, EventArgs e)
+        {
+            DataAcqusitionThread();
+        }
+
+        static void DataAcqusitionThread()
+        {
+            byte[] buffer = new byte[512];
+
+            //_acquireData = true; //Start usb data transfer
+
+            // Setup iso-transfer buffers size 512 and one packet per transfer
+            byte[] cmdBufs = new byte[512];
+            byte[] xferBufs = new byte[512];
+            byte[] ovLaps = new byte[512];
+            ISO_PKT_INFO[] pktsInfo = new ISO_PKT_INFO[1];
+
+            //Pin the data buffer memory, so GC won't touch the memory
+            GCHandle cmdBufferHandle = GCHandle.Alloc(cmdBufs[0], GCHandleType.Pinned);
+            GCHandle xFerBufferHandle = GCHandle.Alloc(xferBufs[0], GCHandleType.Pinned);
+            GCHandle overlapDataHandle = GCHandle.Alloc(ovLaps[0], GCHandleType.Pinned);
+            GCHandle pktsInfoHandle = GCHandle.Alloc(pktsInfo[0], GCHandleType.Pinned);
+
+            // Reset the Decoder
+            //_decoder = new CellPMTDataDecoder();
+            //_decoder.CellPMTDataAvailableEventHandler += Decoder_PMTDataAvailable;
+            try
+            {
+                _mcu.LockNLoad(cmdBufs, xferBufs, ovLaps, pktsInfo);
+            }
+            catch (NullReferenceException ex)
+            {
+                // This exception gets thrown if the device is unplugged 
+                // while we're streaming data
+                Console.WriteLine($"Data Streaming Interrupted.  Was the device unplugged?{Environment.NewLine}");
+                Console.WriteLine(ex.Message);
+                Console.WriteLine(ex.StackTrace);
+            }
+
+            //Release the pinned memory and make it available to GC
+            cmdBufferHandle.Free();
+            xFerBufferHandle.Free();
+            overlapDataHandle.Free();
+            pktsInfoHandle.Free();
         }
 
         static void App_ProcessExit(object sender, EventArgs e)
