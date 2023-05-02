@@ -11,7 +11,7 @@ namespace PalaLite.Models
         //private int _packetLength = 512;
         private ConcurrentQueue<byte[]> _packets;
 
-        private int _packetsToAnalyze = 1000;
+        private int _packetsToAnalyze = 100;
         private int _packetCount;
         private bool _done;
 

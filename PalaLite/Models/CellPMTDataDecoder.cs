@@ -41,7 +41,7 @@ namespace PalaLite.Models
         private List<string> _consoleBuffer = new List<string>();
 
         private int _packetCounter;
-        private int _packetsBeforeSend = 10;
+        private int _packetsBeforeSend = 500;
 
         public CellPMTDataDecoder()
         {
@@ -122,7 +122,6 @@ namespace PalaLite.Models
                     Count[3] = packet[3 + bytesPerEvent * eventIndex];
 
                     currentEvent = BitConverter.ToInt32(Count, 0);
-                    _consoleBuffer.Add(currentEvent.ToString());
                     if (currentEvent > 10000000)
                         currentEvent = 10000000;
 
@@ -267,11 +266,6 @@ namespace PalaLite.Models
                             _consoleBuffer.Add(subPacket);
                         }
 
-                        if (_packetCounter >= _packetsBeforeSend)
-                        {
-                            ExportData();
-                        }
-
                         eventIndex++;
                         if (eventIndex * bytesPerEvent > 450)
                             moreDataInPacket = false;
@@ -281,12 +275,10 @@ namespace PalaLite.Models
                     else //no more data in the packet.
                     {
                         moreDataInPacket = false;
+                        SendConsoleData();
                     }
                 }
             }
-
-            //File.AppendAllLines(Path.Combine(_logPath, _rawEventCountFilename), _consoleBuffer.ToArray());
-            //_consoleBuffer.Clear();
 
             bool Analyze(ChannelFilter filter, int index, ref byte[] target)
             {
@@ -329,6 +321,17 @@ namespace PalaLite.Models
             return eventNumber;
         }
 
+        public void SendConsoleData()
+        {
+            if (_printConsoleOutput)
+            {
+                foreach (string val in _consoleBuffer)
+                {
+                    Console.WriteLine(val);
+                }
+                _consoleBuffer.Clear();
+            }
+        }
         public void ExportData()
         {
             if (_logData)
@@ -339,18 +342,7 @@ namespace PalaLite.Models
                         Path.Combine(_logPath, _rawEventCountFilename),
                         val + Environment.NewLine);
                 }
-                //_logBuffer.Add(counter.ToString());
-                //File.WriteAllLines(Path.Combine(_logPath, _rawEventCountFilename), _logBuffer.ToArray());
                 _logBuffer.Clear();
-            }
-
-            if (_printConsoleOutput)
-            {
-                foreach (string val in _consoleBuffer)
-                {
-                    Console.WriteLine(val);
-                }
-                _consoleBuffer.Clear();
             }
             _packetCounter = 0;
         }

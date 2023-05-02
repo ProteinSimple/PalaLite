@@ -150,7 +150,7 @@ namespace PalaLite.Models
 
         public override string ToString()
         {
-            var msg = string.Format("{1},{2},{3},{4},{5}",
+            var msg = string.Format("{0},{1},{2},{3},{4}",
                 EventCount, Time, Sort, Row, Column);
             return msg;
         }
