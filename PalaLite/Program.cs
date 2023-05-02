@@ -14,6 +14,8 @@ namespace PalaLite
         static private CellPMTDataDecoder _decoder;
         static private MicroController _mcu;
 
+        static private int _packetsToAnalyze = 200;
+
         static void Main(string[] args)
         {
             try
@@ -24,13 +26,13 @@ namespace PalaLite
                 myProcess.PriorityClass = System.Diagnostics.ProcessPriorityClass.High;
 
                 _decoder = new CellPMTDataDecoder();
-                _decoder.DataAvailableEventHandler += Decoder_DataAvailable;
 
                 _mcu = new MicroController();
                 _mcu.packetManager.DoneEventHandler += PacketLimitReached;
-                _mcu.packetManager.PacketAvailableEventHandler += PacketAvailable;
-                _mcu.StartDataAcquisitionEventHandler += StartDataAcquisition;
-                _mcu.StartPMT();
+                //_mcu.packetManager.PacketAvailableEventHandler += PacketAvailable;
+                //_mcu.StartDataAcquisitionEventHandler += StartDataAcquisition;
+                Thread.Sleep(1000);
+                _mcu.StartPMT(_packetsToAnalyze);
             }
             catch (Exception e)
             {
@@ -40,20 +42,12 @@ namespace PalaLite
 
         static void StartDataAcquisition(object sender, EventArgs e)
         {
-            /*try
-            {
-                DataAcqusitionThread();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.Message + ex.StackTrace);
-            }*/
         }
 
         static void App_ProcessExit(object sender, EventArgs e)
         {
             // Stop Data Streaming on CTL+C
-            _mcu.StopPMT();
+            FinishUp();
         }
         static void Decoder_DataAvailable(object sender, DataAvailableEventArgs e)
         {
@@ -78,11 +72,19 @@ namespace PalaLite
 
         static void PacketLimitReached(object sender, EventArgs e)
         {
+            FinishUp();
+        }
+
+        static void FinishUp()
+        {
             // Stop Data Streaming
             _mcu.StopPMT();
-            while(_mcu.packetManager.DataAvailable())
+            bool success;
+            byte[] data;
+            while (_mcu.packetManager.DataAvailable())
             {
-                // Wait.
+                (success, data) = _mcu.packetManager.GetNextPacket();
+                if (success) { AnalyzePacket(data); }
             }
             _decoder.ExportData();
         }

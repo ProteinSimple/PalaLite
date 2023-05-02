@@ -27,6 +27,7 @@ namespace PalaLite.Models
         private readonly int _dataMaximum = 200000;
         private int _firstEvent;
         private int _previousFirstEvent;
+        private int _lastEvent;
 
         private readonly string _logPath;
         private string _rawEventCountFilename;
@@ -40,19 +41,22 @@ namespace PalaLite.Models
         private List<string> _logBuffer = new List<string>();
         private List<string> _consoleBuffer = new List<string>();
 
-        private int _packetCounter;
+        private int _packetCounter = 0;
         private int _packetsBeforeSend = 500;
+        private byte[] _previousPacket;
+        private bool _printNextPacket = false;
 
         public CellPMTDataDecoder()
         {
             _logData = true;
-            _printConsoleOutput = true;
+            //_printConsoleOutput = true;
             _logPath = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
                 "Namocell",
                 "Logs");
-            _rawEventCountFilename = $"event-{DateTime.Now.ToString("yyyyMMdd-hhmm")}.csv";
+            _rawEventCountFilename = $"{DateTime.Now.ToString("yyyyMMdd-hhmmss")}_PalaLite.csv";
             _packetCounter = 0;
+            _logBuffer.Add("Event Number,Time (ms),Event String");
         }
 
         public void AnalyzePacket(byte[] packet, int selectedChannels, int channelNumber, int plateRow, int plateColumn)
@@ -110,8 +114,23 @@ namespace PalaLite.Models
                 bool moreDataInPacket = true;
 
                 _previousFirstEvent = _firstEvent;
-                _consoleBuffer.Add("======================================== New Packet ========================================");
-                _consoleBuffer.Add(BitConverter.ToString(packet));
+
+                if ((Math.Abs(_firstEvent - _lastEvent) > 2) && (_lastEvent > 0))
+                {
+                    var msg = "**************************************** Missed/Bad Packet ****************************************";
+                    if (_printConsoleOutput) { _consoleBuffer.Add(msg); }
+                    if (_logData) { _logBuffer.Add(msg); }
+                }
+                else
+                {
+                    var msg = "======================================== New Packet ========================================";
+                    if (_printConsoleOutput)
+                    {
+                        _consoleBuffer.Add(msg);
+                        _consoleBuffer.Add(BitConverter.ToString(packet));
+                    }
+                    if (_logData) { _logBuffer.Add(msg); }
+                }
 
                 // Repeat for each event in the packet
                 while (moreDataInPacket)
@@ -244,24 +263,15 @@ namespace PalaLite.Models
                         cellPMTData.Row = CNM_Def.STRROW_Alphabet[plateRow];
                         cellPMTData.Column = (plateColumn + 1).ToString();
 
-                        if (eventIndex > 0 && (currentEvent > (previousEvent + 10))) // Max Number of Events Per Packet?
-                        {
-                            _consoleBuffer.Add("**************************************** Missed Packet ****************************************");
-                        }
                         if (currentEvent < 0)
                             return;
 
-                        DataAvailable(cellPMTData);
+                        //DataAvailable(cellPMTData);
 
-                        if (_logData)
-                        {
-                            _logBuffer.Add(cellPMTData.ToString());
-                        }
+                        if (_logData) {  _logBuffer.Add($"{cellPMTData.ToString()},{subPacket}"); }
 
                         if (_printConsoleOutput)
                         {
-                            //Console.WriteLine(currentEvent.ToString());
-                            //Console.WriteLine(subPacket + Environment.NewLine);
                             _consoleBuffer.Add(currentEvent.ToString());
                             _consoleBuffer.Add(subPacket);
                         }
@@ -275,6 +285,7 @@ namespace PalaLite.Models
                     else //no more data in the packet.
                     {
                         moreDataInPacket = false;
+                        _lastEvent = currentEvent;
                         SendConsoleData();
                     }
                 }
@@ -336,12 +347,11 @@ namespace PalaLite.Models
         {
             if (_logData)
             {
-                foreach (string val in _logBuffer)
-                {
-                    File.AppendAllText(
-                        Path.Combine(_logPath, _rawEventCountFilename),
-                        val + Environment.NewLine);
-                }
+                File.WriteAllLines
+                (
+                    Path.Combine(_logPath, _rawEventCountFilename),
+                    _logBuffer
+                );
                 _logBuffer.Clear();
             }
             _packetCounter = 0;
@@ -383,7 +393,7 @@ namespace PalaLite.Models
         {
             _firstEvent = 0;
             _previousFirstEvent = 0;
-            _rawEventCountFilename = $"event-{DateTime.Now.ToString("yyyyMMdd-hhmm")}.csv";
+            _rawEventCountFilename = $"{DateTime.Now.ToString("yyyyMMdd-hhmmss")}_PalaLite.csv";
             _packetCounter = 0;
         }
     }

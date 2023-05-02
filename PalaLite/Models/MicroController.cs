@@ -28,7 +28,8 @@ namespace PalaLite.Models
         {
             packetManager = new PacketManager();
             InitializeCy();
-            StopPMT();
+            //StopPMT();
+            Console.WriteLine($"Successfully connected to simulator.{Environment.NewLine}");
         }
 
 
@@ -93,25 +94,25 @@ namespace PalaLite.Models
                     ovData = (OVERLAPPED)Marshal.PtrToStructure(handleOverlap.AddrOfPinnedObject(), typeof(OVERLAPPED));
                     if (!   baseIsoEndpoint.WaitForXfer(ovData.hEvent, 500))
                     {
-                            baseIsoEndpoint.Abort();
+                        baseIsoEndpoint.Abort();
                         PInvoke.WaitForSingleObject(ovData.hEvent, 500);
                     }
                 }
 
                 // FinishDataXfer
-                if (    isoEndpoint.FinishDataXfer(ref cBufs, ref xBufs, ref len, ref oLaps, ref pktsInfo))
+                if (isoEndpoint.FinishDataXfer(ref cBufs, ref xBufs, ref len, ref oLaps, ref pktsInfo))
                 {
-                        currentFirstEvent = CellPMTDataDecoder.EventNumber(xBufs);
+                    currentFirstEvent = CellPMTDataDecoder.EventNumber(xBufs);
 
                     ISO_PKT_INFO[] pkts = pktsInfo;
 
-                    if ((   previousFirstEvent !=   currentFirstEvent) &&   currentFirstEvent > 0)
+                    if ((currentFirstEvent != previousFirstEvent) &&  currentFirstEvent > 0)
                     {
                         if (pkts[0].Status == 0)
                         {
-                                packetManager.Add(xBufs);
+                            packetManager.Add(xBufs);
                         }
-                            previousFirstEvent =    currentFirstEvent;
+                        previousFirstEvent = currentFirstEvent;
                     }
                 }
                 // Re-submit this buffer into the queue
@@ -199,23 +200,24 @@ namespace PalaLite.Models
             GC.Collect();
         }
 
-        public void StartPMT()
+        public void StartPMT(int numPackets)
         {
+            StopPMT();
+            Thread.Sleep(50);
+            packetManager.PacketsToAnalyze = numPackets;
             SetData(0x60, 0, 0, 2); //Set trigger as normal mode
             Thread.Sleep(50);
             SortControl(4);
             Thread.Sleep(50);
             SetData(0x30, 1, 1, 2); //start data acquisition
             Thread.Sleep(50);
+            Console.WriteLine($"Beginning Data acquisition of {packetManager.PacketsToAnalyze} packets.{Environment.NewLine}");
             StartDataAcquisition();
-            //StartDataAcquisition();
         }
 
         private void StartDataAcquisition()
         {
-            acquireData = true;
             DataAcquisitionThread();
-            //OnStartDataAcquisition(new EventArgs());
         }
 
         protected virtual void OnStartDataAcquisition(EventArgs e)
@@ -231,7 +233,7 @@ namespace PalaLite.Models
         {
             byte[] buffer = new byte[512];
 
-            //_acquireData = true; //Start usb data transfer
+            acquireData = true; //Start usb data transfer
 
             // Setup iso-transfer buffers size 512 and one packet per transfer
             byte[] cmdBufs = new byte[512];
