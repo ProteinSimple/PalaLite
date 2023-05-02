@@ -115,11 +115,21 @@ namespace PalaLite.Models
 
                 _previousFirstEvent = _firstEvent;
 
-                if ((Math.Abs(_firstEvent - _lastEvent) > 2) && (_lastEvent > 0))
+                if (_printNextPacket)
+                {
+                    _logBuffer.Add($",,Next Packet:,{BitConverter.ToString(packet)}");
+                }
+
+                if ((Math.Abs(_firstEvent - _lastEvent) > 2) && (_lastEvent > 0) && !_printNextPacket)
                 {
                     var msg = "**************************************** Missed/Bad Packet ****************************************";
                     if (_printConsoleOutput) { _consoleBuffer.Add(msg); }
-                    if (_logData) { _logBuffer.Add(msg); }
+                    if (_logData) { 
+                        _logBuffer.Add(msg);
+                        _logBuffer.Add($",,Previous Packet:,{BitConverter.ToString(_previousPacket)}");
+                        _logBuffer.Add($",,Bad Packet:,{BitConverter.ToString(packet)}");
+                        _printNextPacket = true;
+                    }
                 }
                 else
                 {
@@ -130,6 +140,7 @@ namespace PalaLite.Models
                         _consoleBuffer.Add(BitConverter.ToString(packet));
                     }
                     if (_logData) { _logBuffer.Add(msg); }
+                    _printNextPacket = false;
                 }
 
                 // Repeat for each event in the packet
@@ -285,7 +296,8 @@ namespace PalaLite.Models
                     else //no more data in the packet.
                     {
                         moreDataInPacket = false;
-                        _lastEvent = currentEvent;
+                        _lastEvent = previousEvent;
+                        _previousPacket = (byte[])packet.Clone();
                         SendConsoleData();
                     }
                 }

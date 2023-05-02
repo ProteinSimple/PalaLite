@@ -14,7 +14,7 @@ namespace PalaLite
         static private CellPMTDataDecoder _decoder;
         static private MicroController _mcu;
 
-        static private int _packetsToAnalyze = 200;
+        static private int _packetsToAnalyze = 1000;
 
         static void Main(string[] args)
         {
