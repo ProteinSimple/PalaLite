@@ -53,7 +53,8 @@ namespace PalaLite.Models
             _logPath = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
                 "Namocell",
-                "Logs");
+                "Logs",
+                "Test");
             _rawEventCountFilename = $"{DateTime.Now.ToString("yyyyMMdd-hhmmss")}_PalaLite.csv";
             _packetCounter = 0;
             _logBuffer.Add("Event Number,Time (ms),Event String");
@@ -120,7 +121,7 @@ namespace PalaLite.Models
                     _logBuffer.Add($",,Next Packet:,{BitConverter.ToString(packet)}");
                 }
 
-                if ((Math.Abs(_firstEvent - _lastEvent) > 2) && (_lastEvent > 0) && !_printNextPacket)
+                if ((Math.Abs(_firstEvent - _lastEvent) > 1) && (_lastEvent > 0) && !_printNextPacket)
                 {
                     var msg = "**************************************** Missed/Bad Packet ****************************************";
                     if (_printConsoleOutput) { _consoleBuffer.Add(msg); }
