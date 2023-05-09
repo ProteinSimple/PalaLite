@@ -23,6 +23,7 @@ namespace PalaLite.Models
         public PacketManager packetManager;
 
         public event EventHandler StartDataAcquisitionEventHandler;
+        private bool firstEventDone;
 
         public MicroController() 
         {
@@ -103,10 +104,19 @@ namespace PalaLite.Models
                 if (isoEndpoint.FinishDataXfer(ref cBufs, ref xBufs, ref len, ref oLaps, ref pktsInfo))
                 {
                     currentFirstEvent = CellPMTDataDecoder.EventNumber(xBufs);
+                    if (!firstEventDone)
+                    {
+                        if (currentFirstEvent != 1) 
+                        { 
+                            previousFirstEvent = currentFirstEvent;
+                            currentFirstEvent = 0; 
+                        }
+                        firstEventDone = true;
+                    }
 
                     ISO_PKT_INFO[] pkts = pktsInfo;
 
-                    if ((currentFirstEvent != previousFirstEvent) &&  currentFirstEvent > 0)
+                    if ((currentFirstEvent != previousFirstEvent) && currentFirstEvent > 0)
                     {
                         if (pkts[0].Status == 0)
                         {

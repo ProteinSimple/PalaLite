@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace ExtensionMethods
 {
@@ -17,6 +19,23 @@ namespace ExtensionMethods
             if (val.CompareTo(min) < 0) return min;
             else if (val.CompareTo(max) > 0) return max;
             else return val;
+        }
+        private static bool IsSubArrayEqual(byte[] x, byte[] y, int start)
+        {
+            for (int i = 0; i < y.Length; i++)
+            {
+                if (x[start++] != y[i]) return false;
+            }
+            return true;
+        }
+        public static int StartingIndex(this byte[] x, byte[] y)
+        {
+            int max = 1 + x.Length - y.Length;
+            for (int i = 0; i < max; i++)
+            {
+                if (IsSubArrayEqual(x, y, i)) return i;
+            }
+            return -1;
         }
     }
 }
