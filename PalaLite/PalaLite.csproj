@@ -63,6 +63,7 @@
     <Compile Include="Models\CNM_Def.cs" />
     <Compile Include="Models\MicroController.cs" />
     <Compile Include="Models\PacketManager.cs" />
+    <Compile Include="Models\PmtDataModel.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Utilities.cs" />
