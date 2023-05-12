@@ -31,12 +31,12 @@ namespace ExtensionMethods
         /// </summary>
         public static List<List<T>> Chunk<T>(this List<T> values, int chunkSize)
         {
-            var partitions = new List<List<T>>();
+            var chunks = new List<List<T>>();
             for (int i = 0; i < values.Count; i += chunkSize)
             {
-                partitions.Add(values.GetRange(i, Math.Min(chunkSize, values.Count - i)));
+                chunks.Add(values.GetRange(i, Math.Min(chunkSize, values.Count - i)));
             }
-            return partitions;
+            return chunks;
         }
     }
 }
