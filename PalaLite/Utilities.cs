@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace ExtensionMethods
 {
@@ -17,6 +19,24 @@ namespace ExtensionMethods
             if (val.CompareTo(min) < 0) return min;
             else if (val.CompareTo(max) > 0) return max;
             else return val;
+        }
+        public static bool CheckBounds<T>(this T val, T min, T max) where T : IComparable<T>
+        {
+            return (val.CompareTo(min) >= 0) && (val.CompareTo(max) <= 0);
+        }
+
+        /// <summary>
+        /// Break a list of items into chunks of a specific size
+        /// From https://www.techiedelight.com/split-a-list-into-sublists-of-size-n-in-csharp/
+        /// </summary>
+        public static List<List<T>> Chunk<T>(this List<T> values, int chunkSize)
+        {
+            var partitions = new List<List<T>>();
+            for (int i = 0; i < values.Count; i += chunkSize)
+            {
+                partitions.Add(values.GetRange(i, Math.Min(chunkSize, values.Count - i)));
+            }
+            return partitions;
         }
     }
 }

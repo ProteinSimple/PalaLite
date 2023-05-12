@@ -14,7 +14,7 @@ namespace PalaLite
         static private CellPMTDataDecoder _decoder;
         static private MicroController _mcu;
 
-        static private int _packetsToAnalyze = 1000;
+        static private int _packetsToAnalyze = 10;
 
         static void Main(string[] args)
         {
@@ -91,14 +91,21 @@ namespace PalaLite
 
         static void AnalyzePacket(byte[] buf)
         {
-            _decoder.AnalyzePacket
-            (
-                packet: buf,
-                selectedChannels: 0, //m_iSelectedChannels,
-                channelNumber: 0, //m_iChannelNumber,
-                plateRow: 1, //m_iCurPlateRow,
-                plateColumn: 1 //m_iCurPlateCol
-            );
+            try
+            {
+                _decoder.DecodeRawPacket
+                (
+                    packet: new List<byte>(buf),
+                    selectedChannels: 0, //m_iSelectedChannels,
+                    numExtraParameters: 0, //m_iChannelNumber,
+                    plateRow: 1, //m_iCurPlateRow,
+                    plateColumn: 1 //m_iCurPlateCol
+                );
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message + ex.StackTrace);
+            }
         }
     }
 }
