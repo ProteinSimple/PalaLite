@@ -24,6 +24,8 @@ namespace PalaLite.Models
 
         public event EventHandler StartDataAcquisitionEventHandler;
 
+        private static int _PACKET_SIZE = 512;
+
         public MicroController() 
         {
             packetManager = new PacketManager();
@@ -42,8 +44,8 @@ namespace PalaLite.Models
             controlEndpoint = baseControlEndpoint as CyControlEndPoint;
 
             baseIsoEndpoint = device.IsocInEndPt;
-            baseIsoEndpoint.XferSize = 512;
-            isoPacketBlockSize = (baseIsoEndpoint as CyIsocEndPoint).GetPktBlockSize(512); //Set Bytes to transfer from device
+            baseIsoEndpoint.XferSize = _PACKET_SIZE;
+            isoPacketBlockSize = (baseIsoEndpoint as CyIsocEndPoint).GetPktBlockSize(_PACKET_SIZE); //Set Bytes to transfer from device
             isoEndpoint = baseIsoEndpoint as CyIsocEndPoint;
 
             usbDevices.DeviceRemoved += new EventHandler(usbDevices_DeviceRemoved);
@@ -116,7 +118,7 @@ namespace PalaLite.Models
                     }
                 }
                 // Re-submit this buffer into the queue
-                len = 512;
+                len = _PACKET_SIZE;
                     baseIsoEndpoint.BeginDataXfer(ref cBufs, ref xBufs, ref len, ref oLaps);
 
             } // End infinite loop
@@ -134,12 +136,12 @@ namespace PalaLite.Models
 
             // Allocate one set of buffers for the queue, Buffered IO method require user to allocate a buffer as a part of command buffer,
             // the BeginDataXfer does not allocated it. BeginDataXfer will copy the data from the main buffer to the allocated while initializing the commands.
-            cBufs = new byte[CyConst.SINGLE_XFER_LEN +  isoPacketBlockSize + (( baseIsoEndpoint.XferMode == XMODE.BUFFERED) ? 512 : 0)];
+            cBufs = new byte[CyConst.SINGLE_XFER_LEN +  isoPacketBlockSize + (( baseIsoEndpoint.XferMode == XMODE.BUFFERED) ? _PACKET_SIZE : 0)];
 
-            xBufs = new byte[512];
+            xBufs = new byte[_PACKET_SIZE];
 
             //initialize the buffer with initial value 0xA5
-            for (int iIndex = 0; iIndex < 512; iIndex++)
+            for (int iIndex = 0; iIndex < _PACKET_SIZE; iIndex++)
                 xBufs[iIndex] = 0xA5;
 
             int sz = Math.Max(CyConst.OverlapSignalAllocSize, sizeof(OVERLAPPED));
@@ -172,7 +174,7 @@ namespace PalaLite.Models
                 ovLapStatus.hEvent = (IntPtr)PInvoke.CreateEvent(0, 0, 0, 0);
                 Marshal.StructureToPtr(ovLapStatus, handleOverlap.AddrOfPinnedObject(), true);
 
-                int len = 512;
+                int len = _PACKET_SIZE;
                 baseIsoEndpoint.BeginDataXfer(ref cBufs, ref xBufs, ref len, ref oLaps);
 
             }
@@ -207,12 +209,97 @@ namespace PalaLite.Models
             packetManager.PacketsToAnalyze = numPackets;
             SetData(0x60, 0, 0, 2); //Set trigger as normal mode
             Thread.Sleep(50);
+
+            PrepDataAcq();
+            SetData(0x3F, 0, 0, 2);//set sort target number to 0 to disable sorting
+            Thread.Sleep(50);
+
             SortControl(4);
             Thread.Sleep(50);
             SetData(0x30, 1, 1, 2); //start data acquisition
             Thread.Sleep(50);
             Console.WriteLine($"Beginning Data acquisition of {packetManager.PacketsToAnalyze} packets.{Environment.NewLine}");
             StartDataAcquisition();
+        }
+
+        private void PrepDataAcq()
+        {
+            SetPMT();
+            Thread.Sleep(50);
+        }
+
+        private void SetPMT()
+        {
+            SetData(0x30, 0, 1, 2);//stop data acquisition
+            Thread.Sleep(50);
+            SetXferDataStructure(); //Set custom data format
+            Thread.Sleep(100);
+            SetGain();
+            Thread.Sleep(100);
+        }
+
+        private void SetXferDataStructure()
+        {
+            int bytes = 8;
+            byte[] buffer = new byte[bytes];
+            bool bXferCompleted = false;
+
+            //laser 1 FSC width
+            buffer[0] = 0x00;
+            buffer[1] = 0x02;
+
+            //laser 1 FSC height
+            buffer[2] = 0x00;
+            buffer[3] = 0x00;
+
+            //laser 2 FSC height
+            buffer[4] = 0x0A;
+            buffer[5] = 0x00;
+
+            //laser 1 SSC height
+            buffer[6] = 0x01;
+            buffer[7] = 0x00;
+
+            if (controlEndpoint != null)
+            {
+                controlEndpoint.Target = CyConst.TGT_DEVICE;
+                controlEndpoint.ReqType = CyConst.REQ_VENDOR;
+                controlEndpoint.Direction = CyConst.DIR_TO_DEVICE;
+
+                try
+                {
+                    controlEndpoint.ReqCode = 0x67; //Set request code for setting transfer data structure
+                    controlEndpoint.Value = 0; //Set wValue
+                    controlEndpoint.Index = 1; //Set wIndex
+                }
+                catch (Exception ex)
+                {
+                    string msg = ex.Message;
+                    return;
+                }
+
+                bXferCompleted = controlEndpoint.XferData(ref buffer, ref bytes);
+            }
+        }
+
+        private void SetGain()
+        {
+            SetData(0x40, 600 * 26, 0, 2); //set FSC gain channel 0. wValue=0-0xFFFF (16-bit)=0 to 2500 mV
+            Thread.Sleep(50);
+            SetData(0x41, 500 * 26, 0, 2); //set SSC gain channel 0. wValue=0-0xFFFF (16-bit)=0 to 2500 mV
+            Thread.Sleep(50);
+            SetData(0x42, 475 * 53, 0, 2); //set PMT1 gain channel 0. wValue=0-0xFFFF (16-bit)=0 to 1200 mV
+            Thread.Sleep(50);
+            SetData(0x43, 525 * 53, 0, 2); //set PMT2 gain channel 0. wValue=0-0xFFFF (16-bit)=0 to 1200 mV
+            Thread.Sleep(50);
+            SetData(0x44, 575 * 53, 0, 2); //set PMT3 gain channel 0. wValue=0-0xFFFF (16-bit)=0 to 1200 mV
+            Thread.Sleep(50);
+            SetData(0x45, 475 * 53, 0, 2); //set PMT4 gain channel 0. wValue=0-0xFFFF (16-bit)=0 to 1200 mV
+            Thread.Sleep(50);
+            SetData(0x46, 600 * 53, 0, 2); //set PMT5 gain channel 0. wValue=0-0xFFFF (16-bit)=0 to 1200 mV
+            Thread.Sleep(50);
+            SetData(0x47, 0 * 53, 0, 2); //set PMT6 gain channel 0. wValue=0-0xFFFF (16-bit)=0 to 1200 mV
+            Thread.Sleep(50);
         }
 
         private void StartDataAcquisition()
@@ -231,14 +318,14 @@ namespace PalaLite.Models
 
         private void DataAcquisitionThread()
         {
-            byte[] buffer = new byte[512];
+            byte[] buffer = new byte[_PACKET_SIZE];
 
             acquireData = true; //Start usb data transfer
 
             // Setup iso-transfer buffers size 512 and one packet per transfer
-            byte[] cmdBufs = new byte[512];
-            byte[] xferBufs = new byte[512];
-            byte[] ovLaps = new byte[512];
+            byte[] cmdBufs = new byte[_PACKET_SIZE];
+            byte[] xferBufs = new byte[_PACKET_SIZE];
+            byte[] ovLaps = new byte[_PACKET_SIZE];
             ISO_PKT_INFO[] pktsInfo = new ISO_PKT_INFO[1];
 
             //Pin the data buffer memory, so GC won't touch the memory

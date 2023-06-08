@@ -124,7 +124,9 @@ namespace PalaLite.Models
                     currentData = new PmtDataModel();
                     List<byte> eventPacket = packet.GetRange(packetIndex, bytesPerEvent);
                     List<List<byte>> eventChunks = Utilities.Chunk(eventPacket, _chunkSize);
-                    subPacket = string.Join("-", eventPacket.ToArray());
+                    //subPacket = string.Join("-", eventPacket.ToArray());
+                    subPacket = BitConverter.ToString(eventPacket.ToArray());
+                    //subPacket = BitConverter.ToString(eventPacket.ToArray()).Replace('-', ',');
 
                     packetIndex = packetIndex + bytesPerEvent; // Starting index of next event.
 
@@ -133,7 +135,7 @@ namespace PalaLite.Models
                     if (currentEvent > 10000000)
                         currentEvent = 10000000;
 
-                    if (currentEvent > previousEvent)
+                    if (currentEvent >= previousEvent)
                     {
                         channelsToAnalyze = selectedChannels; //reset channel selection
 
@@ -260,6 +262,9 @@ namespace PalaLite.Models
                             searchPacket = false;
 
                         previousEvent = currentEvent;
+
+                        _lastEvent = previousEvent;
+                        _previousPacket = new List<byte>(packet);
                     }
                     else //no more data in the packet.
                     {
